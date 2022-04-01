@@ -4,6 +4,7 @@ const User = require("../models/Users");
 const { body, validationResult } = require("express-validator");
 const bcrypt = require("bcrypt");
 var jwt = require("jsonwebtoken");
+const fetchuser = require("../middleware/fetchuser");
 
 const JWT_SECRET = "thisisasecret";
 
@@ -77,7 +78,7 @@ router.post(
       const passwordCompare = await bcrypt.compare(password, user.password);
       if (!passwordCompare) {
         return res
-          .status(401)
+          .status(400)
           .json({ error: "Please try to login with correct credentials" });
       }
       // send the authentication token as a response
@@ -91,4 +92,15 @@ router.post(
   }
 );
 
+// Route 3 : get logged in user info
+router.post("/getuser", fetchuser, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    // find user by id
+    const user = await User.findById(userId).select("-password");
+    res.send(user);
+  } catch (error) {
+    res.status(500).send("Internal server error");
+  }
+});
 module.exports = router;
