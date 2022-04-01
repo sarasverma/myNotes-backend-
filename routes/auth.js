@@ -2,8 +2,12 @@ const express = require("express");
 const router = express.Router();
 const User = require("../models/Users");
 const { body, validationResult } = require("express-validator");
+const bcrypt = require("bcrypt");
+var jwt = require("jsonwebtoken");
 
-// create sign up for new user
+const JWT_SECRET = "thisisasecret";
+
+// Route 1:  create sign up for new user
 router.post(
   "/create_user",
   [
@@ -17,7 +21,6 @@ router.post(
     if (!errors.isEmpty()) {
       return res.status(400).json({ errors: errors.array() });
     }
-    const newUser = User(req.body);
 
     // check user with given email already exists
     const checkUser = await User.findOne({ email: req.body.email });
@@ -25,15 +28,66 @@ router.post(
       return res.status(400).json({ error: "Email already exists" });
     }
 
-    // save new user to the collection
-    newUser
-      .save()
-      .then(() => {
-        res.status(200).json(newUser);
-      })
-      .catch((err) => {
-        res.status(400).json({ error: err });
+    try {
+      const salt = await bcrypt.genSalt(10);
+      const secPass = await bcrypt.hash(req.body.password, salt);
+
+      // save new user to the collection
+      newUser = await User.create({
+        name: req.body.name,
+        password: secPass,
+        email: req.body.email,
       });
+
+      // send the authentication token as a response
+      const data = { user: { id: newUser.id } };
+      const authtoken = jwt.sign(data, JWT_SECRET);
+
+      res.status(200).json({ authtoken: authtoken });
+    } catch (error) {
+      res.status(500).send("Internal server error");
+    }
+  }
+);
+
+// Route 2 : Login for user
+router.post(
+  "/login",
+  [
+    body("email", "Enter valid email").isEmail(),
+    body("password", "Password cannot be blank").exists(),
+  ],
+  async (req, res) => {
+    // valididating parameters
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+    const { email, password } = req.body;
+
+    try {
+      // find user with given email
+      const user = await User.findOne({ email: email });
+      if (!user) {
+        return res
+          .status(400)
+          .json({ error: "Please enter valid credentials" });
+      }
+      // compare password
+      const passwordCompare = await bcrypt.compare(password, user.password);
+      if (!passwordCompare) {
+        return res
+          .status(401)
+          .json({ error: "Please try to login with correct credentials" });
+      }
+      // send the authentication token as a response
+      const data = { user: { id: user.id } };
+      const authtoken = jwt.sign(data, JWT_SECRET);
+
+      res.status(200).json({ authtoken: authtoken });
+    } catch (error) {
+      res.status(500).send("Internal server error");
+    }
   }
 );
 
