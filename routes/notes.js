@@ -48,9 +48,49 @@ router.get("/fetchnotes", fetchuser, async (req, res) => {
 });
 
 // ROUTER : 3   update a note
-router.put("/updatenote:id", fetchuser, async (req, res) => {});
+router.put("/updatenote/:id", fetchuser, async (req, res) => {
+  const { title, description, tags } = req.body;
+  // updated Note
+  const updatedNote = {};
+  if (title) {
+    updatedNote.title = title;
+  }
+  if (description) {
+    updatedNote.description = description;
+  }
+  if (tags) {
+    updatedNote.tags = tags;
+  }
+
+  let note = await Note.findById(req.params.id);
+  if (!note) {
+    res.status(500).send("Not found");
+  }
+
+  // check whether user owns the note
+  if (req.user.id !== note.user.toString()) {
+    res.status(401).send("Access denined");
+  }
+  note = await Note.findByIdAndUpdate(
+    req.params.id,
+    { $set: updatedNote },
+    { new: true }
+  );
+  res.status(200).json({ note });
+});
 
 // ROURER : 4   delete a note
-router.delete("/deletenote:id", fetchuser);
+router.delete("/deletenote/:id", fetchuser, async (req, res) => {
+  let note = await Note.findById(req.params.id);
+  if (!note) {
+    res.status(500).send("Not found");
+  }
+  // check whether user owns the note
+  if (req.user.id !== note.user.toString()) {
+    res.status(401).send("Access denined");
+  }
+  note = await Note.findByIdAndDelete(req.params.id);
+  res.status(200).send({ succes: "Deleted successfully!" });
+});
 
 module.exports = router;
